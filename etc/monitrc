@@ -1,0 +1,8 @@
+set daemon 5
+set logfile syslog
+
+set httpd port 2812 address localhost
+   signature disable
+   allow localhost
+
+include /usr/local/etc/monit.d/*

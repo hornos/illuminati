@@ -1,0 +1,7 @@
+check process dnsmasq with pidfile /var/run/dnsmasq.pid
+  start program = "/usr/local/opt/dnsmasq/sbin/dnsmasq" with timeout 60 seconds
+  stop program = "/bin/bash -c 'kill -s SIGTERM $(cat /var/run/dnsmasq.pid)'"
+  if failed host 127.0.0.1 port 53 use type udp protocol dns with timeout 60 seconds then restart
+
+check directory hosts.d with path /usr/local/etc/hosts.d
+  if changed timestamp then exec "/usr/local/bin/monit restart dnsmasq"

@@ -1,0 +1,101 @@
+#!/bin/bash
+gbn=$(basename $0)
+gdn=$(pwd $(dirname $0))
+cmd=${1:-start}
+
+launch="/Library/LaunchDaemons"
+etcdir="/usr/local/etc"
+
+_true_=0
+_false_=1
+
+function illuminati/term() {
+  if [ ! -r "${1}" ] ; then
+    return ${_false_}
+  fi
+
+  sudo kill -SIGTERM $(cat ${1})
+}
+
+function illuminati/hup() {
+  if [ ! -r "${1}" ] ; then
+    return ${_false_}
+  fi
+
+  sudo kill -SIGHUP $(cat ${1})
+}
+
+function illuminati/dnsmasq() {
+  local _plist=${launch}/homebrew.mxcl.dnsmasq.plist
+  local _pid=/var/run/dnsmasq.pid
+  case ${cmd} in
+    info)
+      brew info dnsmasq
+      ;;
+    init)
+      sudo cp -fv /usr/local/opt/dnsmasq/*.plist ${launch}
+      ;;
+    start)
+      sudo launchctl load ${_plist}
+      ;;
+    stop)
+      illuminati/term ${_pid}
+      sudo launchctl unload ${_plist}
+      ;;
+    restart)
+      illuminati/hup ${_pid}
+      ;;
+  esac
+}
+
+function illuminati/monit() {
+  local _plist=${launch}/com.tildeslash.monit.plist
+  local _pid=/var/run/monit.pid
+  case ${cmd} in
+    info)
+      brew info dnsmasq
+      ;;
+    init)
+      sudo cp -fv ${gdb}/etc/*.plist ${launch}
+      ;;
+    start)
+      sudo launchctl load ${_plist}
+      ;;
+    stop)
+      illuminati/term ${_pid}
+      sudo launchctl unload ${_plist}
+      ;;
+    restart)
+      illuminati/hup ${_pid}
+      ;;
+  esac
+}
+
+function illuminati/bootstrap() {
+  echo "Bootstrap: Monit"
+  if [ ! -d "${etcdir}/monit.d" ] ; then
+    mkdir -v "${etcdir}/monit.d"
+  fi
+
+  for i in ${gdn}/etc/monit.d/* ; do
+    cp -v ${i} ${etcdir}/monit.d/
+  done
+
+  sudo cp -v ${gdn}/etc/monitrc ${etcdir}/monitrc
+  sudo chown root:admin ${etcdir}/monitrc
+
+  echo ""
+  echo "Bootstrap: dnsmasq"
+  if [ ! -d "${etcdir}/hosts.d" ] ; then
+    mkdir -v "${etcdir}/hosts.d"
+  fi
+
+  cp -v ${gdn}/etc/dnsmasq.conf ${etcdir}/dnsmasq.conf
+
+  echo ""
+  echo "Type bin/monit start"
+  echo ""
+  echo "Check http://localhost:2812 in your browser"
+}
+
+illuminati/${gbn}
