@@ -2,3 +2,5 @@
 check file resolv.conf with path /etc/resolv.conf
   if changed timestamp
     then exec "/bin/bash -c 'cp /etc/resolv.conf /etc/_resolv.conf; if ! cat /etc/_resolv.conf | grep "127.0.0.1"; then echo "nameserver 127.0.0.1" | cat - /etc/_resolv.conf > /etc/resolv.conf; fi &> /dev/null'"
+  if changed timestamp
+    then exec "/bin/bash -c 'curl --retry 3 --retry-delay 5 http://ifconfig.me/all/json > /var/run/ifconfig.me'"
