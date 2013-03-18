@@ -1,0 +1,21 @@
+---
+:pusher:
+  :app_id: ''
+  :key: ''
+  :secret: ''
+  :channel: 'pwHnK7E3'
+  :event: 'G5Ku6ndR'
+  :sleep: 10
+
+:redux:
+  - :msgpack
+  - :xz
+  - :aes
+  - :ascii85
+
+:push:
+  :ifconfig: /var/run/ifconfig.me
+
+:dnsmasq:
+  :name: illuminati
+  :hosts: /usr/local/etc/hosts.d

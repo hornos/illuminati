@@ -84,6 +84,8 @@ function illuminati/bootstrap() {
   sudo cp -v ${gdn}/etc/monitrc ${etcdir}/monitrc
   sudo chown root:admin ${etcdir}/monitrc
 
+  cp -v ${gdn}/etc/local_resolv ${etcdir}/local_resolv
+
   echo ""
   echo "Bootstrap: dnsmasq"
   if [ ! -d "${etcdir}/hosts.d" ] ; then

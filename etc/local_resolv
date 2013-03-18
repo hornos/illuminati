@@ -1,0 +1,15 @@
+#!/bin/bash
+
+resolv=/var/run/resolv.conf
+tmp=${resolv}.tmp
+
+if [ ! -r "${resolv}" ] ; then
+  logger "Not found: ${resolv}"
+  exit 1
+fi
+
+cp "${resolv}" "${tmp}"; 
+if ! cat ${resolv} | grep "127.0.0.1"; then
+	echo "nameserver 127.0.0.1" | cat - ${tmp} > ${resolv}
+	logger "Changed: ${resolv}"
+fi &> /dev/null
