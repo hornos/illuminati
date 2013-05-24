@@ -10,20 +10,22 @@ require 'securerandom'
 require 'digest/md5'
 
 require 'FileUtils'
-
 require 'gli'
 
+require 'eat'
+require 'sqlite3'
+
 include GLI::App
-program_desc 'Pusher based messaging'
+program_desc 'The Ting Tings'
 version 1.0
 
 def msgpack(data,enc=:encode)
-  return data.to_msgpack          if enc == :encode
+  return data.to_msgpack if enc == :encode
   MessagePack.unpack(data)
 end
 
 def xz(data,enc=:encode)
-  return XZ::compress(data)   if enc == :encode
+  return XZ::compress(data) if enc == :encode
   XZ::decompress(data)
 end
 
@@ -66,24 +68,6 @@ arg_name 'key'
 flag [:k,:key]
 
 
-desc 'Ting server'
-arg_name ''
-command :server do |cmd|
-  cmd.action do |global_options,options,args|
-    cfg   = @config[:pusher]
-    chan  = cfg[:channel]
-    event = cfg[:event]
-
-    loop do
-      ifconfig = YAML.load( File.read( @config[:push][:ifconfig] ) )
-      payload = {:name=>@config[:dnsmasq][:name],:ip=>ifconfig['ip_addr']}
-      Pusher[chan].trigger(event, encode(payload))
-      sleep(cfg[:sleep])
-    end
-  end
-end
-
-
 desc 'Ting client'
 arg_name ''
 command :client do |cmd|
@@ -99,42 +83,37 @@ command :client do |cmd|
     socket.subscribe(cfg[:channel])
     socket[cfg[:channel]].bind(cfg[:event]) do |data|
       data = decode(data)
-      if data["name"] =~ /^\w+$/ and data["ip"] =~ /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/ then
-        # host = @config[:hosts] + "/" + data["name"]
-        host = @config[:dnsmasq][:hosts] + "/" + data["ip"]
-        dns = data["ip"] + " " + data["name"]
-        if File.exists?(host) then
-          # check content
-          if Digest::MD5.hexdigest(dns) != Digest::MD5.hexdigest(File.read(host)) then
-            puts "name change: " + dns
-            FileUtils.rm(host) 
-          end
-        end
-        File.open(host, "w+") do |f|
-          f.write( dns )
-        end
-        # puts data
+      case data[0]
+      when 'ping'
+        # puts 'ping'
+        # send back external ip
+        chan  = cfg[:channel]
+        event = cfg[:event]
+        ip = eat('http://ifconfig.me/ip', :timeout => 10)
+        Pusher[chan].trigger(event, encode(['pong',@config[:myid],ip.strip!]))
+      when 'pong'
+        @db.execute "INSERT INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        puts "INSERT INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+      else
+        puts data
       end
     end
     socket.connect
   end
 end
 
-desc 'Push Message'
+desc 'Ping'
 arg_name ''
-command :push do |cmd|
+command :ping do |cmd|
   cmd.action do |global_options,options,args|
     cfg   = @config[:pusher]
     chan  = cfg[:channel]
     event = cfg[:event]
-
-    ifconfig = YAML.load( File.read( @config[:push][:ifconfig] ) )
-    payload = ['reductio',ifconfig['ip_addr']]
-    Pusher[chan].trigger(event, encode(payload))
+    Pusher[chan].trigger(event, encode(['ping',args]))
   end
 end
 
-desc 'Generate Secret-key'
+desc 'Generate shared key'
 arg_name ''
 command :genkey do |cmd|
   cmd.action do |global_options,options,args|
@@ -154,7 +133,11 @@ pre do |global,command,options,args|
   Pusher.app_id = cfg[:app_id]
   Pusher.key    = cfg[:key]
   Pusher.secret = cfg[:secret]
-  # Pusher.encrypted = 
+  # Pusher.encrypted =
+
+  # init DB
+  @db = SQLite3::Database.open "#{File.basename(__FILE__)}.db"
+  @db.execute "CREATE TABLE IF NOT EXISTS hosts(id TEXT PRIMARY KEY, ip TEXT)"
 end
 
 post do |global,command,options,args|
@@ -163,9 +146,8 @@ end
 on_error do |exception|
   STDERR.puts exception.backtrace
   # require 'pry'
-  #Â binding.pry
+  # binding.pry
   true
 end
-
 
 exit run(ARGV)

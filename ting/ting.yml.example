@@ -1,0 +1,18 @@
+---
+# Pusher.com
+:pusher:
+  :key: ''
+  :secret: ''
+  :app_id: ''
+  :channel: '55F63AA4014C4719A7E327458D479C2F'
+  :event: 'AADEDFC87F5A42049380696F9401B7A2'
+
+# Encryption chain
+:redux:
+  - :msgpack
+  - :xz
+  - :aes
+  - :ascii85
+
+# ID
+:myid: illuminati
