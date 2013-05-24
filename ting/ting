@@ -94,7 +94,8 @@ command :client do |cmd|
         Pusher[chan].trigger(event, encode(['pong',@config[:myid],ip.strip!]))
       when 'pong'
         @db.execute "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
-        puts "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        # puts "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        puts "Registering host #{data[1]} (#{data[2]})"
       else
         puts data
       end
@@ -135,6 +136,22 @@ pre do |global,command,options,args|
   Pusher.key    = cfg[:key]
   Pusher.secret = cfg[:secret]
   # Pusher.encrypted =
+
+  puts 'Ting GPUPNP Client'
+
+  # UPNP discovery
+  if global[:u]
+    require 'open3'
+    stdin, stdout, stderr = Open3.popen3('upnpc -l')
+    for l in stdout.readlines
+      case l
+        when /ExternalIPAddress/
+          @externalip = l.split.last
+          die('UPNP failed') if @externalip.empty?
+          puts "External IP: #{@externalip}"
+      end
+    end
+  end
 
   # init DB
   @db = SQLite3::Database.open "#{File.basename(__FILE__)}.db"
