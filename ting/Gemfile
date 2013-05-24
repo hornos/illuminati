@@ -1,0 +1,18 @@
+source :rubygems
+source 'http://rubygems.org'
+source :rubyforge
+source 'http://gems.rubyforge.org'
+source :gemcutter
+source 'http://gemcutter.org'
+
+gem 'pusher'
+gem 'pusher-client'
+gem 'msgpack'
+gem 'ruby-xz'
+gem 'Ascii85'
+gem 'gibberish'
+gem 'activesupport'
+gem 'gli'
+gem 'eat'
+gem 'sqlite3'
+gem 'simple_upnp'

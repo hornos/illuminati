@@ -9,7 +9,6 @@ require 'gibberish'
 require 'securerandom'
 require 'digest/md5'
 
-require 'FileUtils'
 require 'gli'
 
 require 'eat'
@@ -67,6 +66,8 @@ default_value "#{File.basename(__FILE__)}.key"
 arg_name 'key'
 flag [:k,:key]
 
+desc 'Use UPNP'
+switch [:u,:upnp]
 
 desc 'Ting client'
 arg_name ''
@@ -92,8 +93,8 @@ command :client do |cmd|
         ip = eat('http://ifconfig.me/ip', :timeout => 10)
         Pusher[chan].trigger(event, encode(['pong',@config[:myid],ip.strip!]))
       when 'pong'
-        @db.execute "INSERT INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
-        puts "INSERT INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        @db.execute "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        puts "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
       else
         puts data
       end
