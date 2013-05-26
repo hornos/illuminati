@@ -4,19 +4,20 @@ require 'pusher-client'
 require 'msgpack'
 require 'xz'
 require 'ascii85'
+
 require 'gibberish'
 require 'securerandom'
 require 'digest/md5'
+
 require 'gli'
+
 require 'eat'
-require 'json'
-require 'open3'
+require 'sqlite3'
 
 include GLI::App
 program_desc 'The Ting Tings'
 version 1.0
 
-### compress
 def msgpack(data,enc=:encode)
   return data.to_msgpack if enc == :encode
   MessagePack.unpack(data)
@@ -32,11 +33,12 @@ def ascii85(data,enc=:encode)
   Ascii85.decode(data)
 end
 
-### encrypt
+
 def aes(data,enc=:encode)
   return @cipher.enc(data) if enc == :encode
   @cipher.dec(data)
 end
+
 
 def encode(data,redux=@config[:redux])
   redux.inject(data) do |enc,encoder|
@@ -52,22 +54,8 @@ def decode(data,redux=@config[:redux])
   data
 end
 
-### upnp
-def upnp(pattern="ExternalIPAddress")
-  stdin, stdout, stderr = Open3.popen3('upnpc -l')
-  for line in stdout.readlines
-    return line.split.last if line =~ /#{pattern}/
-  end
-end
 
-def sshfp(type="rsa")
-  stdin, stdout, stderr = Open3.popen3("ssh-keygen -lf /etc/ssh/ssh_host_#{type}_key.pub")
-  for line in stdout.readlines
-    return line.split[1]
-  end
-end
-
-### Global flags
+# Global options
 desc 'Config'
 default_value "#{File.basename(__FILE__)}.yml"
 arg_name 'config'
@@ -78,19 +66,9 @@ default_value "#{File.basename(__FILE__)}.key"
 arg_name 'key'
 flag [:k,:key]
 
-desc 'Hosts directory'
-default_value "#{File.dirname(__FILE__)}/hosts"
-arg_name 'hosts'
-flag [:h,:hosts]
-
-### Global switches
 desc 'Use UPNP'
 switch [:u,:upnp]
 
-desc 'Use SQL'
-switch [:s,:sql]
-
-### Commands
 desc 'Ting client'
 arg_name ''
 command :client do |cmd|
@@ -105,30 +83,23 @@ command :client do |cmd|
     # Subscribe to two channels
     socket.subscribe(cfg[:channel])
     socket[cfg[:channel]].bind(cfg[:event]) do |data|
-      cmd, data = decode(data)
-      case cmd
+      data = decode(data)
+      case data[0]
       when 'ping'
+        # puts 'ping'
+        # send back external ip
         chan  = cfg[:channel]
         event = cfg[:event]
-        ip = global_options[:u] ? upnp() : eat('http://ifconfig.me/ip', :timeout => 10)
-        pong = {
-          :id => @config[:myid],
-          :ip => ip.strip,
-          :fp => sshfp()
-        }
-        Pusher[chan].trigger(event, encode(['pong',pong]))
+        ip = eat('http://ifconfig.me/ip', :timeout => 10)
+        Pusher[chan].trigger(event, encode(['pong',@config[:myid],ip.strip!]))
       when 'pong'
-        data.tap do |h|
-          h.keys.each { |k| h[k.to_sym] = h.delete(k) }
-        end
-        out = "#{global_options[:h]}/#{data[:id]}.json"
-        File.open(out,"w") do |f|
-          f.write(JSON.pretty_generate(data))
-        end
+        @db.execute "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        # puts "REPLACE INTO hosts VALUES('"+data[1]+"','"+data[2]+"')"
+        puts "Registering host #{data[1]} (#{data[2]})"
+      else
         puts data
-      end # when
-    end # data
-
+      end
+    end
     socket.connect
   end
 end
@@ -166,21 +137,28 @@ pre do |global,command,options,args|
   Pusher.secret = cfg[:secret]
   # Pusher.encrypted =
 
+  puts 'Ting GPUPNP Client'
+
   # UPNP discovery
   if global[:u]
-    @externalip = upnp()
-    die('UPNP failed') if @externalip.empty?
-    puts "External IP: #{@externalip}"
+    require 'open3'
+    stdin, stdout, stderr = Open3.popen3('upnpc -l')
+    for l in stdout.readlines
+      case l
+        when /ExternalIPAddress/
+          @externalip = l.split.last
+          die('UPNP failed') if @externalip.empty?
+          puts "External IP: #{@externalip}"
+      end
+    end
   end
 
-  # init hosts
-  Dir.mkdir(global[:h]) unless File.exists?(global[:h])
-
-  true
+  # init DB
+  @db = SQLite3::Database.open "#{File.basename(__FILE__)}.db"
+  @db.execute "CREATE TABLE IF NOT EXISTS hosts(id TEXT PRIMARY KEY, ip TEXT)"
 end
 
 post do |global,command,options,args|
-  true
 end
 
 on_error do |exception|
